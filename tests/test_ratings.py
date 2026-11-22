@@ -193,3 +193,4 @@ def test_plot_rejects_unknown_team(tmp_path):
     elos, _ = compute_elo(df)
     with pytest.raises(ValueError):
         plot_elo_trajectories(elos["L"], ["Ghost FC"], save_path=tmp_path / "f.png")
+        
