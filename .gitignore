@@ -226,3 +226,8 @@ __marimo__/
 venv/
 data/raw/
 .vscode/
+# Local scratch
+scratch.py
+status_check.py
+context_*.txt
+outputs/figures/menu_*.png
