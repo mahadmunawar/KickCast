@@ -2,7 +2,7 @@
 
 Produces the three labelled figures used in the evaluation report:
     1. Elo rating trajectories of selected teams over time.
-    2. Seaborn heatmap of scoreline probabilities for a fixture. (added later)
+    2. Seaborn heatmap of scoreline probabilities for a fixture.
     3. Calibration chart comparing the model with the bookmaker.
 
 Figures are saved to outputs/figures/.
@@ -13,6 +13,9 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import seaborn as sns
+
+from src.poisson import ScorelineModel
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 FIGURE_DIR = PROJECT_ROOT / "outputs" / "figures"
@@ -107,6 +110,54 @@ def plot_calibration(y_true, probabilities, bins=8,
         ax.set_ylabel("Observed frequency")
         ax.grid(alpha=0.3)
         ax.legend(loc="upper left")
+        fig.tight_layout()
+        fig.savefig(save_path, dpi=150)
+        if show:
+            plt.show()
+    finally:
+        plt.close(fig)
+    return save_path
+
+
+def plot_scoreline_heatmap(matrix, home_team, away_team, save_path=None,
+                           show=False):
+    """Figure 2: Seaborn heatmap of scoreline probabilities for one fixture.
+
+    Rows are the home team's goals and columns the away team's goals, so the
+    cell in row 2, column 1 is the probability of a 2-1 home win. Cells below
+    the diagonal are home wins, the diagonal is draws, above it away wins.
+
+    Args:
+        matrix: 2-D array from ScorelineModel.scoreline_matrix().
+        home_team, away_team: names used in the labels.
+
+    Returns:
+        The Path of the saved image.
+
+    Raises:
+        ValueError: if matrix is not a non-empty 2-D array.
+    """
+    m = np.asarray(matrix, dtype=float)
+    if m.ndim != 2 or m.size == 0:
+        raise ValueError("matrix must be a non-empty 2-D array")
+    save_path = Path(save_path) if save_path else FIGURE_DIR / "fig2_scoreline_heatmap.png"
+    save_path.parent.mkdir(parents=True, exist_ok=True)
+
+    percent = m / m.sum() * 100
+    home_win, draw, away_win = ScorelineModel.outcome_probabilities(m)
+
+    fig, ax = plt.subplots(figsize=(9, 7.5))
+    try:
+        sns.heatmap(percent, annot=True, fmt=".1f", cmap="YlOrRd",
+                    linewidths=0.5, linecolor="white",
+                    annot_kws={"size": 9},
+                    cbar_kws={"label": "Probability (%)"}, ax=ax)
+        ax.set_title(f"Scoreline probabilities (%): {home_team} vs {away_team}\n"
+                     f"{home_team} win {home_win:.0%}  |  Draw {draw:.0%}  |  "
+                     f"{away_team} win {away_win:.0%}")
+        ax.set_xlabel(f"{away_team} goals")
+        ax.set_ylabel(f"{home_team} goals")
+        ax.tick_params(axis="y", rotation=0)
         fig.tight_layout()
         fig.savefig(save_path, dpi=150)
         if show:
