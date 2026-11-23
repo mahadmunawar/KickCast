@@ -30,6 +30,8 @@ RAW_DIR = PROJECT_ROOT / "data" / "raw"
 HEADERS = {"User-Agent": "KickCast-student-project/1.0 (FAST-NUCES coursework)"}
 TIMEOUT_SECONDS = 15
 
+SAMPLE_DIR = PROJECT_ROOT / "data" / "sample"   # small snapshot kept in the repo
+
 LEAGUE_CODES = {"EPL": "E0", "LaLiga": "SP1"}
 
 # Columns every match row must have, and the extra columns we keep if present.
@@ -147,6 +149,31 @@ class FootballCsvSource(DataSource):
     def _season_path(self, season):
         return self._cache_path / f"{self.league}_{season}.csv"
 
+    def season_cache_age_hours(self, season):
+        """Age in hours of one season's cached CSV, or None if it is not cached."""
+        return self.cache_age_hours(self._season_path(season))
+
+    @classmethod
+    def load_sample(cls, league, season="2526", sample_dir=None):
+        """Load the small offline snapshot kept in data/sample/ (no network).
+
+        Used as the last fallback when the web and the data/raw cache are both
+        unavailable, so a fresh clone still runs offline.
+
+        Raises:
+            ValueError: for an unknown league.
+            DataFetchError: if the snapshot file is missing or unreadable.
+        """
+        if league not in LEAGUE_CODES:
+            raise ValueError(f"League must be one of {list(LEAGUE_CODES)}")
+        path = (Path(sample_dir) if sample_dir else SAMPLE_DIR) / f"{league}_{season}.csv"
+        if not path.exists():
+            raise DataFetchError(f"No sample snapshot found at {path}")
+        df = cls._parse_csv(path.read_bytes())
+        df["League"] = league
+        df["Season"] = season
+        return df.reset_index(drop=True)
+
     @staticmethod
     def _parse_csv(raw):
         """Turn raw CSV bytes into a tidy DataFrame (or raise DataFetchError)."""
@@ -198,6 +225,18 @@ class FplApiSource(DataSource):
         if not isinstance(data, dict) or "elements" not in data or "teams" not in data:
             raise DataFetchError("FPL JSON is missing 'elements' or 'teams'")
         return data
+
+    @classmethod
+    def load_sample(cls, sample_dir=None):
+        """Load the FPL snapshot kept in data/sample/ (no network).
+
+        Raises:
+            DataFetchError: if the snapshot is missing or not valid FPL JSON.
+        """
+        path = (Path(sample_dir) if sample_dir else SAMPLE_DIR) / "fpl_bootstrap.json"
+        if not path.exists():
+            raise DataFetchError(f"No sample snapshot found at {path}")
+        return cls._parse_json(path.read_bytes())
 
     def load(self):
         """Return the full FPL JSON as a dict, using the cache if offline."""

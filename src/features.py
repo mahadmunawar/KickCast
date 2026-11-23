@@ -6,7 +6,9 @@ is shifted by one match, so the current match never leaks into its own
 features.
 
 Contents:
-    FeatureBuilder - build(matches) returns one row of features per match.
+    FeatureBuilder - build(matches) returns one row of features per match;
+                     fixture_features(...) builds the same features for a
+                     future fixture that has no result yet.
 
 Features per match (16 in total):
     Elo (4):      HomeElo, AwayElo, EloDiff, EloExpected
@@ -16,6 +18,7 @@ Features per match (16 in total):
                   `window` matches (home and away games together).
 """
 
+import numpy as np
 import pandas as pd
 
 from src.ratings import compute_elo
@@ -55,6 +58,10 @@ class FeatureBuilder:
     @property
     def window(self):
         return self._window
+
+    @property
+    def min_history(self):
+        return self._min_history
 
     @property
     def elos(self):
@@ -149,3 +156,46 @@ class FeatureBuilder:
         if dropna:
             features = features.dropna()
         return features
+
+    def fixture_features(self, matches, league, home_team, away_team):
+        """Features for a fixture that has NOT been played yet.
+
+        Uses exactly the definitions of build(), applied "after the last
+        match": the teams' current Elo ratings (from the last build()) and the
+        average of each team's most recent `window` matches in `matches`
+        (home and away games together). Nothing about the fixture itself is
+        needed, so there is no leakage.
+
+        Args:
+            matches: the same DataFrame that was passed to build().
+            league: league name, e.g. "EPL".
+            home_team, away_team: team names as spelled in `matches`.
+
+        Returns:
+            A one-row DataFrame with the columns of `feature_names`. A rolling
+            value is NaN when that team has fewer than `min_history` matches.
+
+        Raises:
+            RuntimeError: if build() has not been called yet.
+            ValueError: for an unknown league or if a team plays itself.
+        """
+        if self._elos is None:
+            raise RuntimeError("call build() first")
+        if league not in self._elos:
+            raise ValueError(f"unknown league: {league}")
+        if home_team == away_team:
+            raise ValueError("a team cannot play itself")
+
+        elo = self._elos[league]
+        row = {"HomeElo": elo.rating(home_team), "AwayElo": elo.rating(away_team),
+               "EloExpected": elo.expected_score(home_team, away_team)}
+        row["EloDiff"] = row["HomeElo"] - row["AwayElo"]
+
+        history = self._team_match_table(matches[matches["League"] == league])
+        history = history.sort_values(["Date", "MatchId"], kind="stable")
+        for side, team in (("Home", home_team), ("Away", away_team)):
+            recent = history[history["Team"] == team].tail(self._window)
+            for stat in ROLLING_STATS:
+                row[f"{side}_{stat}"] = (recent[stat].mean()
+                                         if len(recent) >= self._min_history else np.nan)
+        return pd.DataFrame([row])[self.feature_names]
