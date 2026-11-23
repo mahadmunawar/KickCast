@@ -10,7 +10,10 @@ Figures are saved to outputs/figures/.
 
 from pathlib import Path
 
-import matplotlib.pyplot as plt
+import matplotlib
+matplotlib.use("Agg")  # save-to-file backend: never opens a GUI window
+# (the Tk window backend is broken on some Windows Python installs)
+import matplotlib.pyplot as plt  # noqa: E402  (must come after use())
 import numpy as np
 import pandas as pd
 import seaborn as sns
@@ -22,7 +25,7 @@ FIGURE_DIR = PROJECT_ROOT / "outputs" / "figures"
 
 
 def plot_elo_trajectories(elo, teams, title="Elo rating trajectories",
-                          save_path=None, show=False):
+                          save_path=None):
     """Figure 1: line chart of each team's Elo rating after every match.
 
     Args:
@@ -30,7 +33,6 @@ def plot_elo_trajectories(elo, teams, title="Elo rating trajectories",
         teams: list of team names to draw.
         title: chart title.
         save_path: where to save the PNG (default outputs/figures/fig1_...).
-        show: if True, also open the figure in a window.
 
     Returns:
         The Path of the saved image.
@@ -58,8 +60,6 @@ def plot_elo_trajectories(elo, teams, title="Elo rating trajectories",
         fig.autofmt_xdate()
         fig.tight_layout()
         fig.savefig(save_path, dpi=150)
-        if show:
-            plt.show()
     finally:
         plt.close(fig)
     return save_path
@@ -67,7 +67,7 @@ def plot_elo_trajectories(elo, teams, title="Elo rating trajectories",
 
 def plot_calibration(y_true, probabilities, bins=8,
                      title="Calibration on the test season",
-                     save_path=None, show=False):
+                     save_path=None):
     """Figure 3: reliability chart of predicted probabilities vs. reality.
 
     Home, draw and away probabilities are pooled: each of the three
@@ -112,15 +112,12 @@ def plot_calibration(y_true, probabilities, bins=8,
         ax.legend(loc="upper left")
         fig.tight_layout()
         fig.savefig(save_path, dpi=150)
-        if show:
-            plt.show()
     finally:
         plt.close(fig)
     return save_path
 
 
-def plot_scoreline_heatmap(matrix, home_team, away_team, save_path=None,
-                           show=False):
+def plot_scoreline_heatmap(matrix, home_team, away_team, save_path=None):
     """Figure 2: Seaborn heatmap of scoreline probabilities for one fixture.
 
     Rows are the home team's goals and columns the away team's goals, so the
@@ -160,8 +157,6 @@ def plot_scoreline_heatmap(matrix, home_team, away_team, save_path=None,
         ax.tick_params(axis="y", rotation=0)
         fig.tight_layout()
         fig.savefig(save_path, dpi=150)
-        if show:
-            plt.show()
     finally:
         plt.close(fig)
     return save_path
